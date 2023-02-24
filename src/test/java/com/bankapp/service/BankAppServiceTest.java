@@ -14,9 +14,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.bson.Document;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import com.bankapp.dao.BankAppDao;
@@ -29,7 +31,7 @@ import static com.mongodb.client.model.Filters.eq;
 public class BankAppServiceTest {
     BankAppService service;
 
-    Document document = new Document();
+    List<Document> documents = new ArrayList<>();
 
     @Mock
     private BankAppDao mockDao;
@@ -37,23 +39,20 @@ public class BankAppServiceTest {
     public BankAppServiceTest() throws DaoPersistenceException{
         MockitoAnnotations.openMocks(this);
 
-        Document doc = new Document();
-        doc.append("username", "123");
-        doc.append("password", "%Test1234");
-        doc.append("customerID", "123");
-
         doAnswer(new Answer<Void>(){
             public Void answer(InvocationOnMock invocation){
-                document = invocation.getArgument(0);
+                documents.add(invocation.getArgument(0));
                 return null;
             }
         }).when(mockDao).add(any(Document.class));
 
-        when(mockDao.get(any(Document.class))).thenReturn(new Document());
-        when(mockDao.update(any(Document.class), any(Document.class))).thenReturn(true);
-
 
         service = new BankAppServiceImpl(mockDao, mockDao, mockDao);
+    }
+
+    @AfterEach
+    public void cleanUp(){
+        documents.clear();
     }
 
     //Create Acount tests
@@ -139,7 +138,7 @@ public class BankAppServiceTest {
 
         try{
             service.createAccount(username, password);
-            when(mockDao.get(eq("username", username))).thenReturn(document);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
 
             service.createAccount(username, password);
             fail("Exception not thrown");
@@ -158,7 +157,7 @@ public class BankAppServiceTest {
 
         try{
             service.createAccount(username, password);
-            when(mockDao.get(eq("username", username))).thenReturn(document);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
 
             service.login(username, password);
         } catch(InvalidPasswordException | InvalidUsernameException | BankAppServiceException e){
@@ -173,7 +172,7 @@ public class BankAppServiceTest {
 
         try{
             service.createAccount(username, password);
-            when(mockDao.get(eq("username", username))).thenReturn(document);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
 
             service.login("tes", password);
             fail("Exception not thrown!");
