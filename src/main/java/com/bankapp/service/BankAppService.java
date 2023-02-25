@@ -1,7 +1,6 @@
 package com.bankapp.service;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 import com.bankapp.dto.BankAccount;
 import com.bankapp.dto.CustomerAccount;
@@ -10,21 +9,22 @@ public interface BankAppService {
     public CustomerAccount createAccount(String username, String password)
         throws InvalidPasswordException, InvalidUsernameException, BankAppServiceException;
 
-    public CustomerAccount login(String username, String password)
+    public String[] login(String username, String password)
         throws InvalidPasswordException, InvalidUsernameException, BankAppServiceException;
 
-    public BankAccount openAccount(int type, String token)
-        throws AccountOpeningException;
+    public BankAccount openAccount(String type, String token, String fingerprint)
+        throws AccountOpeningException, BankAppServiceException;
 
-    public int deposit(BigDecimal amount, String token, String accountNumber)
+    public BigDecimal deposit(BigDecimal amount, String token, String fingerprint, String accountNumber)
         throws AccountNotFoundException, BankAppServiceException;
 
-    public int withdraw(BigDecimal amount, String token, String accountNumber)
+    public BigDecimal withdraw(BigDecimal amount, String token, String fingerprint, String accountNumber)
         throws AccountNotFoundException, BankAppServiceException;
 
-    public int transfer(BigDecimal amount, String token, String sender, String recepient)
+    public BigDecimal transfer(BigDecimal amount, String token, String fingerprint, String sender, String recepient, 
+        String senderType, String recepientType)
         throws AccountNotFoundException, BankAppServiceException;
 
-    public List<BankAccount> getAccounts(String token)
-        throws BankAppServiceException;
+    public BankAccount getAccounts(String token, String fingerprint)
+        throws AccountNotFoundException, BankAppServiceException;
 }

@@ -6,6 +6,8 @@ import com.mongodb.client.model.Updates;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.List;
+
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.junit.jupiter.api.AfterEach;
@@ -81,6 +83,23 @@ public class BankAccountDaoTest {
             assertEquals(doc.get(key).toString(), "trial");
         } catch(DaoPersistenceException e){
             fail("Unexpected exception thrown");
+        }
+    }
+
+    @Test
+    public void testGetAll(){
+        Document doc = new Document().append(key, value);
+        Document doc2 = new Document().append(key, value);
+
+        try{
+            dao.add(doc);
+            dao.add(doc2);
+
+            List<Document> docs = dao.getAll(eq(key, value));
+
+            assertEquals(docs.size(), 2);
+        } catch(DaoPersistenceException e){
+            fail("Unexpected exception thrown!");
         }
     }
 }

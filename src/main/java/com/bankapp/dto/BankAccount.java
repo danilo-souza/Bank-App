@@ -8,4 +8,5 @@ import lombok.Data;
 public class BankAccount {
     private String customerID;
     private Map<String, BigDecimal> accounts;
+    private Map<String, String> accountNumbers;
 }

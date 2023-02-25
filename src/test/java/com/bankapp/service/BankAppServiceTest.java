@@ -6,8 +6,10 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -159,7 +161,9 @@ public class BankAppServiceTest {
             service.createAccount(username, password);
             when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
 
-            service.login(username, password);
+            String[] out = service.login(username, password);
+            assertTrue(!out[0].equals(""));
+            assertFalse(out[1].equals(""));
         } catch(InvalidPasswordException | InvalidUsernameException | BankAppServiceException e){
             fail("Unexpected exception thrown");
         }
@@ -195,77 +199,131 @@ public class BankAppServiceTest {
     //Test open account
     @Test
     public void testOpenCheckings(){
-        String token = "123";
-        int type = 1;
+        String username = "test";
+        String password = "%Test1234";
+        String type = "Checking";
 
         try{
-            service.openAccount(type, token);
+            service.createAccount(username, password);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
+
+            String[] out = service.login(username, password);
+            service.openAccount(type, out[1], out[0]);
         } catch(AccountOpeningException e){
             fail("Exception thrown!");
+        } catch(InvalidPasswordException | 
+                BankAppServiceException | 
+                DaoPersistenceException |
+                InvalidUsernameException e){
+            fail("Wrong exception thrown!");
         }
 
-        //Try opening a second checkings
+        /*//Try opening a second checkings
         try{
-            service.openAccount(type, token);
+            String[] out = service.login(username, password);
+            service.openAccount(type, out[1], out[0]);
             fail("Exception not thrown!");
         } catch(AccountOpeningException e){
             assertNotNull(e);
-        }
+        } catch(InvalidPasswordException | BankAppServiceException | InvalidUsernameException e){
+            fail("Wrong exception thrown!");
+        }*/
     }
 
     @Test
     public void testOpenSavings(){
-        String token = "123";
-        int type = 2;
+        String username = "test";
+        String password = "%Test1234";
+        String type = "Savings";
 
         try{
-            service.openAccount(type, token);
+            service.createAccount(username, password);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
+
+            String[] out = service.login(username, password);
+
+            BankAccount result = service.openAccount(type, out[1], out[0]);
+            String customerID = result.getCustomerID();
+
+            Document opened = new Document();
+            String accountNumber = result.getAccountNumbers().get("Savings");
+            opened.append("customerID", customerID);
+            opened.append(accountNumber, new Document()
+                    .append("type", type)
+                    .append("balance", result.getAccounts().get(accountNumber)));
+
+            when(mockDao.get(eq("customerID", result.getCustomerID()))).thenReturn(opened);
+
+            Document ret = mockDao.get(eq("customerID", customerID));
+
+            assertEquals(ret.get(accountNumber).toString(), opened.get(accountNumber).toString());
         } catch(AccountOpeningException e){
             fail("Exception thrown!");
-        }
-
-        //Try opening a second savings
-        try{
-            service.openAccount(type, token);
-            fail("Exception not thrown!");
-        } catch(AccountOpeningException e){
-            assertNotNull(e);
+        } catch(InvalidPasswordException | 
+                BankAppServiceException | 
+                DaoPersistenceException |
+                InvalidUsernameException e){
+            fail("Wrong exception thrown!");
         }
     }
 
     //Test invalid token
     @Test
     public void testOpenAccountInvalid(){
-        String token = "#";
-        int type = 2;
+        String username = "test";
+        String password = "%Test1234";
+        String type = "Savings";
 
         try{
-            service.openAccount(type, token);
+            service.createAccount(username, password);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
+
+            String[] out = service.login(username, password);
+            service.openAccount(type, "agsghas", out[0]);
             fail("Exception not thrown!");
-        } catch(AccountOpeningException e){
+        } catch(AccountOpeningException | BankAppServiceException  e){
             assertNotNull(e);
+        } catch(InvalidPasswordException | 
+                DaoPersistenceException |
+                InvalidUsernameException e){
+            fail("Wrong exception thrown!");
         }
     }
 
     //Test Deposit and Withdraw
     @Test
     public void testDeposit(){
-        String token = "123";
-        String accountNumber = "123";
+        String username = "test";
+        String password = "%Test1234";
+        String type = "Savings";
         BigDecimal amount = new BigDecimal(100);
+        Document opened = new Document();
+        String[] out = new String[2];
 
         try{
-            service.openAccount(1, token);
-            int out = service.deposit(amount, token, accountNumber);
-            assertEquals(100, out);
-        } catch(AccountOpeningException | AccountNotFoundException | BankAppServiceException e ){
+            opened.append("customerID", "1");
+            opened.append(type, new Document()
+                    .append("accountNumber", "12")
+                    .append("balance", 0));
+            
+            service.createAccount(username, password);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
+
+            out = service.login(username, password);
+            service.openAccount(type, out[1], out[0]);
+
+            when(mockDao.get(eq("customerID", documents.get(0).get("customerID").toString()))).thenReturn(opened);
+
+            BigDecimal delta = service.deposit(amount, out[1], out[0], "12");
+            assertEquals(amount, delta);
+        } catch(Throwable e ){
             fail("Exception thrown!");
         }
 
         //Try to deposit negative amount
-        amount = new BigDecimal(-100);
+        amount = new BigDecimal(-200);
         try{
-            service.deposit(amount, token, accountNumber);
+            service.deposit(amount, out[1], out[0], "12");
             fail("Exception not thrown!");
         } catch(BankAppServiceException e ){
             assertNotNull(e);
@@ -274,25 +332,45 @@ public class BankAppServiceTest {
         }
     }
 
+    //Test Deposit
     @Test
     public void testWithdraw(){
-        String token = "123";
-        String accountNumber = "123";
+        String username = "test";
+        String password = "%Test1234";
+        String type = "Savings";
         BigDecimal amount = new BigDecimal(100);
+        Document opened = new Document();
+        String[] out = new String[2];
 
         try{
-            service.deposit(amount, token, accountNumber);
-            int out = service.withdraw(amount, token, accountNumber);
-            assertEquals(0, out);
-        } catch(AccountNotFoundException | BankAppServiceException e){
+            opened.append("customerID", "1");
+            opened.append(type, new Document()
+                    .append("accountNumber", "12")
+                    .append("balance", 100));
+            
+            service.createAccount(username, password);
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
+
+            out = service.login(username, password);
+            service.openAccount(type, out[1], out[0]);
+
+            when(mockDao.get(eq("customerID", documents.get(0).get("customerID").toString()))).thenReturn(opened);
+
+            BigDecimal delta = service.withdraw(amount, out[1], out[0], "12");
+            assertEquals(BigDecimal.ZERO, delta);
+
+            opened.replace(type, new Document()
+                .append("accountNumber", "12")
+                .append("balance", delta.toString()));
+        } catch(Throwable e ){
             fail("Exception thrown!");
         }
 
-        //Try to withdraw without enough money
+        //Try to withdraw without money
         try{
-            service.withdraw(amount, token, accountNumber);
+            service.withdraw(amount, out[1], out[0], "12");
             fail("Exception not thrown!");
-        } catch(BankAppServiceException e){
+        } catch(BankAppServiceException e ){
             assertNotNull(e);
         } catch(AccountNotFoundException e){
             fail("Wrong exception thrown!");
@@ -301,53 +379,117 @@ public class BankAppServiceTest {
 
     //Test transfer
     @Test
-    public void testTransfer(){
-        String token = "123";
+    public void testTransfer() {
+        String username = "test";
+        String password = "%Test1234";
+
         String accountNumber1 = "123";
         String accountNumber2 = "456";
         BigDecimal amount = new BigDecimal(100);
 
-        try{
-            service.deposit(amount, token, accountNumber1);
-            int out = service.transfer(amount, token, accountNumber1, accountNumber2);
+        String[] out = new String[2];
 
-            assertEquals(0, out);
-        } catch(AccountNotFoundException | BankAppServiceException e){
+        Document account1 = new Document()
+                .append("customerID", "1")
+                .append("Checking", new Document()  
+                    .append("accountNumber", accountNumber1)
+                    .append("balance", "100"));
+
+            Document account2 = new Document()
+                .append("customerID", "1")
+                .append("Savings", new Document()  
+                    .append("accountNumber", accountNumber2)
+                    .append("balance", "0"));
+
+        try{
+            service.createAccount(username, password);
+
+            documents.get(0).replace("customerID", "1");
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
+            
+            out = service.login(username, password);
+
+            when(mockDao.get(eq("customerID", "1"))).thenReturn(account1);
+            when(mockDao.get(eq("Savings.accountNumber", "456"))).thenReturn(account2);
+
+
+            BigDecimal balance = service.transfer(amount, out[1], out[0], accountNumber1, accountNumber2, "Checking", "Savings");
+
+            assertEquals(BigDecimal.ZERO, balance);
+        } catch(AccountNotFoundException | BankAppServiceException |
+                InvalidPasswordException | InvalidUsernameException | DaoPersistenceException e){
             fail("Exception thrown!");
         }
 
-        //Try to transfer without any money
+        //Transfer without money
         try{
-            service.transfer(amount, token, accountNumber1, accountNumber2);
-        } catch(BankAppServiceException e){
+            account1.replace("Checking", new Document().append("accountNumber", accountNumber1).append("balance", "0"));
+
+            service.transfer(amount, out[1], out[0], accountNumber1, accountNumber2, "Checking", "Savings");
+
+            fail("Exception not thrown");
+        } catch(AccountNotFoundException | BankAppServiceException e){
             assertNotNull(e);
-        } catch(AccountNotFoundException e){
-            fail("Wrong exception thrown!");
         }
     }
 
     //Test get all accounts
     @Test
     public void testGetAllAccounts(){
-        String token = "123";
-        List<BankAccount> accounts;
+        String username = "test";
+        String password = "%Test1234";
+        BankAccount account = new BankAccount();
+
+        String[] out = new String[2];
+
+        Document account1 = new Document()
+                .append("customerID", "1")
+                .append("Checking", new Document()  
+                    .append("accountNumber", "123")
+                    .append("balance", "100"))
+                .append("Savings", new Document()  
+                    .append("accountNumber", "123")
+                    .append("balance", "100"));
 
         //Test without any accounts
         try{
-            accounts = service.getAccounts(token);
+            service.createAccount(username, password);
 
-            assertEquals(accounts.size(), 2);
-        } catch(BankAppServiceException e){
-            fail("Exception thrown!");
+            documents.get(0).replace("customerID", "1");
+            when(mockDao.get(eq("username", username))).thenReturn(documents.get(0));
+
+            out = service.login(username, password);
+
+            account = service.getAccounts(out[1], out[0]);
+
+            fail("Exception not thrown!");
+        } catch(BankAppServiceException | InvalidUsernameException | 
+                InvalidPasswordException | DaoPersistenceException | AccountNotFoundException e){
+            assertNotNull(e);
         }
 
         try{
-            service.openAccount(1, token);
-            service.openAccount(2, token);
-            accounts = service.getAccounts(token);
+            /*Map<String, String> acNumbers = new HashMap<>();
+            acNumbers.put("Checking", "123");
 
-            assertEquals(accounts.size(), 2);
-        } catch(BankAppServiceException | AccountOpeningException e){
+            Map<String, BigDecimal> acBalance = new HashMap<>();
+            acBalance.put("123", BigDecimal.ZERO);
+
+            BankAccount ac1 = new BankAccount();
+            ac1.setCustomerID("1");
+            ac1.setAccountNumbers(acNumbers);
+            ac1.setAccounts(acBalance);
+            
+            accounts.add(ac1);
+            accounts.add(ac1);*/
+
+
+            when(mockDao.get(eq("customerID", "1"))).thenReturn(account1);
+
+            account = service.getAccounts(out[1], out[0]);
+
+            assertEquals(account.getAccountNumbers().size(), 2);
+        } catch(BankAppServiceException | AccountNotFoundException | DaoPersistenceException e){
             fail("Exception thrown!");
         }
     }

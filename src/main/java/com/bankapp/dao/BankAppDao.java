@@ -1,5 +1,7 @@
 package com.bankapp.dao;
 
+import java.util.List;
+
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
@@ -17,5 +19,8 @@ public interface BankAppDao {
         throws DaoPersistenceException;
 
     public void removeMany(Bson query)
+        throws DaoPersistenceException;
+
+    public List<Document>getAll(Bson query)
         throws DaoPersistenceException;
 }

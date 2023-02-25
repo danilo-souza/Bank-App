@@ -1,5 +1,8 @@
 package com.bankapp.dao;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
@@ -7,6 +10,7 @@ import com.bankapp.dto.CustomerAccount;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 
 public class BankAppDaoImpl implements BankAppDao{
@@ -69,6 +73,21 @@ public class BankAppDaoImpl implements BankAppDao{
             collection.deleteMany(query);
         } catch(Throwable e){
             throw new DaoPersistenceException("Something went wrong; could not remove data form the database!", null);
+        }
+    }
+
+    @Override
+    public List<Document> getAll(Bson query) throws DaoPersistenceException{
+        try{
+            List<Document> out = new ArrayList<>();
+            MongoCursor<Document> iterator = collection.find(query).cursor();
+            while(iterator != null && iterator.hasNext()){
+                out.add(iterator.next());
+            }
+            
+            return out;
+        } catch(Throwable e){
+            throw new DaoPersistenceException("Something went wrong; could not complete query!", null);
         }
     }
     
