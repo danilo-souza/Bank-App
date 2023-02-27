@@ -14,10 +14,10 @@ import java.util.regex.Pattern;
 import org.apache.commons.codec.digest.Crypt;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.bson.json.JsonObject;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.auth0.jwt.JWT;
@@ -35,7 +35,6 @@ import static com.mongodb.client.model.Filters.eq;
 
 import com.mongodb.client.model.Updates;
 
-@Component
 public class BankAppServiceImpl implements BankAppService{
     BankAppDao customerAccountDao;
     BankAppDao bankAccountDao;
@@ -152,7 +151,7 @@ public class BankAppServiceImpl implements BankAppService{
 
         Document account = new Document();
         account.append("accountNumber", accountNumber);
-        account.append("balance", 0);
+        account.append("balance", "0");
 
         BankAccount out = new BankAccount();
         Map<String, BigDecimal> accounts = new HashMap<>();
@@ -168,7 +167,7 @@ public class BankAppServiceImpl implements BankAppService{
 
 
             bankAccountDao.update(eq("customerID", customerID), 
-                                    Updates.combine(Updates.setOnInsert(type, account.toJson())));
+                                    Updates.combine(Updates.set(type, new JsonObject(account.toJson()))));
         } catch(DaoPersistenceException e){
             throw new AccountOpeningException("There was a problem opening the account!", null);
         }
@@ -232,7 +231,7 @@ public class BankAppServiceImpl implements BankAppService{
         balance = balance.add(amount);
 
         try{
-            Bson update = Updates.combine(Updates.set(type + ".balance", balance));
+            Bson update = Updates.combine(Updates.set(type + ".balance", balance.toString()));
 
             bankAccountDao.update(
                 eq("customerID", customerID), 
@@ -279,8 +278,8 @@ public class BankAppServiceImpl implements BankAppService{
             inner = null;
         }
         if(inner != null && inner.getString("accountNumber").equals(accountNumber)){
-            account = account.getJSONObject(type);
             type = "Checking";
+            account = account.getJSONObject(type);
         }
         else{
             type = "Savings";
@@ -304,7 +303,7 @@ public class BankAppServiceImpl implements BankAppService{
         balance = balance.subtract(amount);
 
         try{
-            Bson update = Updates.combine(Updates.set(type + ".balance", balance));
+            Bson update = Updates.combine(Updates.set(type + ".balance", balance.toString()));
 
             bankAccountDao.update(
                 eq("customerID", customerID), 
@@ -330,7 +329,7 @@ public class BankAppServiceImpl implements BankAppService{
         JSONObject account2;
 
         try{
-            Document temp = bankAccountDao.get(eq("username", payload.getString("username")));
+            Document temp = customerAccountDao.get(eq("username", payload.getString("username")));
             temp = bankAccountDao.get(eq("customerID", temp.get("customerID").toString()));
             account1 = new JSONObject(temp.toJson());
 
@@ -495,18 +494,6 @@ public class BankAppServiceImpl implements BankAppService{
     }
 
     private String verifyJWT(String fingerprint, String token) throws BankAppServiceException{
-        //String fingerprint = null;
-
-        /*if(request.getCookies() != null && request.getCookies().length > 0){
-            List<Cookie> cookies = Arrays.stream(request.getCookies()).collect(Collectors.toList());
-            Optional<Cookie> cookie = cookies.stream().filter(c -> "__Secure-Fgp"
-                                                        .equals(c.getName())).findFirst();
-            
-            if(cookie.isPresent()){
-                fingerprint = cookie.get().getValue();
-            }
-        }*/
-
         MessageDigest sha;
         byte[] fingerprintDigest;
 
