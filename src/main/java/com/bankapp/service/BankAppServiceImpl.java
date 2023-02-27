@@ -17,7 +17,6 @@ import org.bson.conversions.Bson;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.ImportResource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +35,7 @@ import static com.mongodb.client.model.Filters.eq;
 
 import com.mongodb.client.model.Updates;
 
+@Component
 public class BankAppServiceImpl implements BankAppService{
     BankAppDao customerAccountDao;
     BankAppDao bankAccountDao;

@@ -5,8 +5,6 @@ import java.util.List;
 
 import org.bson.Document;
 import org.bson.conversions.Bson;
-import org.springframework.context.annotation.ImportResource;
-import org.springframework.stereotype.Component;
 
 import com.bankapp.dto.CustomerAccount;
 import com.mongodb.client.MongoClient;
