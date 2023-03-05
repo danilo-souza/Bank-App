@@ -10,6 +10,7 @@ import java.util.*;
 import java.util.Base64.Encoder;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.ArrayList;
 
 import org.apache.commons.codec.digest.Crypt;
 import org.bson.Document;
@@ -32,6 +33,9 @@ import com.bankapp.dto.CustomerAccount;
 import jakarta.xml.bind.DatatypeConverter;
 
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.exists;
+import static com.mongodb.client.model.Filters.empty;
+import static com.mongodb.client.model.Filters.and;
 
 import com.mongodb.client.model.Updates;
 
@@ -143,7 +147,6 @@ public class BankAppServiceImpl implements BankAppService{
     public BankAccount openAccount(String type, String token, String fingerprint) 
             throws AccountOpeningException, BankAppServiceException{
         
-        //token = new String(Base64.getUrlDecoder().decode(token));
         JSONObject payload = decodeJWT(verifyJWT(fingerprint, token));
        
         SecureRandom random = new SecureRandom();
@@ -156,19 +159,33 @@ public class BankAppServiceImpl implements BankAppService{
         BankAccount out = new BankAccount();
         Map<String, BigDecimal> accounts = new HashMap<>();
         Map<String, String> accountNumbers = new HashMap<>();
-
-        accounts.put(accountNumber, BigDecimal.ZERO);
-        accountNumbers.put(type, accountNumber);
         
         try{
             Document result = customerAccountDao.get(eq("username", payload.getString("username")));
             String customerID = result.get("customerID").toString();
             out.setCustomerID(customerID);
 
+            Bson query = and(eq("customerID", customerID), exists(type, false));
 
-            bankAccountDao.update(eq("customerID", customerID), 
-                                    Updates.combine(Updates.set(type, new JsonObject(account.toJson()))));
-        } catch(DaoPersistenceException e){
+            bankAccountDao.update(query, Updates.combine(Updates.set(type, new JsonObject(account.toJson()))));
+
+            result = bankAccountDao.get(eq("customerID", customerID));
+
+            if(result.containsKey("Checking")){
+                accountNumber = result.get("Checking", Document.class).getString("accountNumber");
+                BigDecimal balance = new BigDecimal(result.get("Checking", Document.class).getString("balance"));
+                accounts.put(accountNumber, balance);
+
+                accountNumbers.put("Checking", accountNumber);
+            }
+            if(result.containsKey("Savings")){
+                accountNumber = result.get("Savings", Document.class).getString("accountNumber");
+                BigDecimal balance = new BigDecimal(result.get("Savings", Document.class).getString("balance"));
+                accounts.put(accountNumber, balance);
+
+                accountNumbers.put("Savings", accountNumber);
+            }
+        } catch(DaoPersistenceException | NumberFormatException e){
             throw new AccountOpeningException("There was a problem opening the account!", null);
         }
 
@@ -415,6 +432,50 @@ public class BankAppServiceImpl implements BankAppService{
         temp.setAccounts(accountBalance);
 
         return temp;
+    }
+
+    @Override
+    public List<Document> getLogs(String token, String fingerprint) throws BankAppServiceException{
+        List<Document> out = new ArrayList<>();
+
+        JSONObject payload = decodeJWT(verifyJWT(fingerprint, token));
+        String username = payload.getString("username");
+
+        try{
+            Document customer = customerAccountDao.get(eq("username", username));
+            String customerID = customer.getString("customerID");
+
+            Document accounts = bankAccountDao.get(eq("customerID", customerID));
+            Document checking = accounts.get("Checking", Document.class);
+            Document saving = accounts.get("Savings", Document.class);
+
+            String checkingNumber, savingNumber;
+
+            if(checking != null){
+                checkingNumber = checking.getString("accountNumber");
+
+                logDao.getAll(empty()).forEach(doc -> 
+                    {
+                        if(doc.containsKey(checkingNumber)){
+                            out.add(doc);
+                        }
+                    });
+            }
+            if(saving != null){
+                savingNumber = saving.getString("accountNumber");
+                
+                logDao.getAll(empty()).forEach(doc -> 
+                    {
+                        if(doc.containsKey(savingNumber)){
+                            out.add(doc);
+                        }
+                    });
+            }
+
+            return out;
+        } catch(DaoPersistenceException e){
+            throw new BankAppServiceException("There was a problem getting the logs!", null);
+        }
     }
 
 

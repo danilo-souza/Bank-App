@@ -7,14 +7,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.bson.Document;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.HttpStatus;
 
 import com.bankapp.dto.BankAccount;
@@ -25,7 +28,8 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-@Controller
+@RestController
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true", exposedHeaders = {"Set-Cookie"})
 public class BankAppController {
     BankAppService service;
     
@@ -63,21 +67,25 @@ public class BankAppController {
             return new ResponseEntity<String>(HttpStatus.BAD_REQUEST);
         }
         
+        //TODO: Change SameSite back to strict
         String fingerprintCookie = "__Secure-Fgp=" + out[0]
-                           + "; SameSite=Strict; HttpOnly; Secure";
+                           + "; SameSite=None; HttpOnly; Secure";
         response.addHeader("Set-Cookie", fingerprintCookie);
-        response.addHeader("Set-Cookie", "bankapp-jwt=" + out[1]);
+        response.addHeader("Set-Cookie", "bankapp-jwt=" + out[1] + "; SameSite=None; Secure");
+        response.setStatus(HttpStatus.OK.value());
 
         return ResponseEntity.ok("Login successsfull");
     }
 
-    @PostMapping("/openAccount")
-    private ResponseEntity<BankAccount> openAccount(@RequestBody String type, HttpServletRequest request){
+    @PutMapping("/openAccount")
+    private ResponseEntity<BankAccount> openAccount(@RequestBody Map<String, String> body, HttpServletRequest request){
         try{
             List<Cookie> cookies = Arrays.stream(request.getCookies()).collect(Collectors.toList());
 
             Optional<Cookie> fingerprint = cookies.stream().filter(c -> "__Secure-Fgp".equals(c.getName())).findFirst();
             Optional<Cookie> token = cookies.stream().filter(c -> "bankapp-jwt".equals(c.getName())).findFirst();
+
+            String type = body.get("type");
 
             BankAccount account = service.openAccount(type, token.get().getValue(), fingerprint.get().getValue());
 
@@ -88,13 +96,15 @@ public class BankAppController {
     }
 
     @PostMapping("/deposit/{amount}")
-    private ResponseEntity<BigDecimal> deposit(@PathVariable String amount, @RequestBody String accountNumber, HttpServletRequest request){
+    private ResponseEntity<BigDecimal> deposit(@PathVariable String amount, @RequestBody Map<String, String> accountMap, HttpServletRequest request){
         try{
             BigDecimal dep = new BigDecimal(amount);
             List<Cookie> cookies = Arrays.stream(request.getCookies()).collect(Collectors.toList());
 
             Optional<Cookie> fingerprint = cookies.stream().filter(c -> "__Secure-Fgp".equals(c.getName())).findFirst();
             Optional<Cookie> token = cookies.stream().filter(c -> "bankapp-jwt".equals(c.getName())).findFirst();
+
+            String accountNumber = accountMap.get("number");
 
             BigDecimal delta = service.deposit(dep, token.get().getValue(), fingerprint.get().getValue(), accountNumber);
 
@@ -105,13 +115,15 @@ public class BankAppController {
     }
 
     @PostMapping("/withdraw/{amount}")
-    private ResponseEntity<BigDecimal> withdraw(@PathVariable String amount, @RequestBody String accountNumber, HttpServletRequest request){
+    private ResponseEntity<BigDecimal> withdraw(@PathVariable String amount, @RequestBody Map<String, String> accountMap, HttpServletRequest request){
         try{
             BigDecimal with = new BigDecimal(amount);
             List<Cookie> cookies = Arrays.stream(request.getCookies()).collect(Collectors.toList());
 
             Optional<Cookie> fingerprint = cookies.stream().filter(c -> "__Secure-Fgp".equals(c.getName())).findFirst();
             Optional<Cookie> token = cookies.stream().filter(c -> "bankapp-jwt".equals(c.getName())).findFirst();
+
+            String accountNumber = accountMap.get("number");
 
             BigDecimal delta = service.withdraw(with, token.get().getValue(), fingerprint.get().getValue(), accountNumber);
 
@@ -158,6 +170,22 @@ public class BankAppController {
             return ResponseEntity.ok(account);
         } catch(Throwable e){
             return new ResponseEntity<BankAccount>(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @GetMapping("/logs")
+    private ResponseEntity<List<Document>> getLogs(HttpServletRequest request){
+        try{
+            List<Cookie> cookies = Arrays.stream(request.getCookies()).collect(Collectors.toList());
+
+            Optional<Cookie> fingerprint = cookies.stream().filter(c -> "__Secure-Fgp".equals(c.getName())).findFirst();
+            Optional<Cookie> token = cookies.stream().filter(c -> "bankapp-jwt".equals(c.getName())).findFirst();
+
+            List<Document> out = service.getLogs(token.get().getValue(), fingerprint.get().getValue());
+
+            return  ResponseEntity.ok(out);
+        } catch(Throwable e){
+            return new ResponseEntity<List<Document>>(HttpStatus.BAD_REQUEST);
         }
     }
 }

@@ -1,6 +1,9 @@
 package com.bankapp.service;
 
 import java.math.BigDecimal;
+import java.util.List;
+
+import org.bson.Document;
 
 import com.bankapp.dto.BankAccount;
 import com.bankapp.dto.CustomerAccount;
@@ -27,4 +30,7 @@ public interface BankAppService {
 
     public BankAccount getAccounts(String token, String fingerprint)
         throws AccountNotFoundException, BankAppServiceException;
+
+    public List<Document> getLogs(String token, String fingerprint)
+        throws BankAppServiceException;
 }
